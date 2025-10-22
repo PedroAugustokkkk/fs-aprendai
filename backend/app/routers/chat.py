@@ -1,47 +1,51 @@
 # /app/routers/chat.py
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, escape
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.services import chat_service
 from marshmallow import ValidationError
 
-# Cria o Blueprint para /chat
 bp = Blueprint('chat', __name__, url_prefix='/chat')
 
 @bp.route('/send', methods=['POST'])
-@jwt_required() # Protege o endpoint de chat
+@jwt_required()
 def send_message():
-    """
-    Recebe uma mensagem do usuário, processa com o Gemini e retorna a resposta.
-    Requer autenticação JWT.
-    Espera JSON: { "prompt": "Minha pergunta...", "session_id": "uuid-da-sessao" }
-    """
-    # 1. Pega a ID do usuário a partir do token
     current_user_id = get_jwt_identity()
-    
-    # 2. Pega o JSON da requisição
     json_data = request.get_json()
-    if not json_data:
-        return jsonify(error="Nenhum dado de entrada fornecido"), 400
-
+    if not json_data: return jsonify(error="Nenhum dado de entrada fornecido"), 400
     prompt = json_data.get('prompt')
     session_id = json_data.get('session_id')
-
-    # 3. Validação de entrada
-    if not prompt:
-        return jsonify(error="O campo 'prompt' é obrigatório"), 400
-    if not session_id:
-        return jsonify(error="O campo 'session_id' é obrigatório"), 400
-        
-    # 4. Chama o serviço de chat
+    if not prompt: return jsonify(error="O campo 'prompt' é obrigatório"), 400
+    if not session_id: return jsonify(error="O campo 'session_id' é obrigatório"), 400
     try:
         ai_response = chat_service.send_chat_message(
             prompt=prompt,
-            session_id=session_id,
+            session_id=escape(session_id), # Sanitiza session_id
             user_id=current_user_id
         )
-        # Retorna a resposta da IA (que já é um objeto serializado)
         return jsonify(ai_response), 200
-    
     except Exception as e:
-        return jsonify(error=str(e)), 500
+        # Log do erro real no servidor para debug
+        print(f"ERRO no endpoint /chat/send: {e}") 
+        # Mensagem genérica para o cliente
+        return jsonify(error="Ocorreu um erro ao processar sua mensagem."), 500
+
+
+# --- NOVA ROTA ---
+@bp.route('/<string:session_id>', methods=['GET'])
+@jwt_required()
+def get_history(session_id):
+    """
+    Busca o histórico de mensagens para uma sessão de chat específica.
+    """
+    current_user_id = get_jwt_identity()
+    # Sanitiza o session_id vindo da URL
+    safe_session_id = escape(session_id)
+    
+    try:
+        history = chat_service.get_chat_history(safe_session_id, current_user_id)
+        # O serviço já retorna os dados serializados
+        return jsonify(history), 200
+    except Exception as e:
+        print(f"ERRO no endpoint GET /chat/{safe_session_id}: {e}")
+        return jsonify(error="Ocorreu um erro ao buscar o histórico."), 500
