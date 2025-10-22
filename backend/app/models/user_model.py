@@ -3,7 +3,7 @@
 # Importa o 'db' (nosso banco) e 'bcrypt' (para senhas) de extensions
 from app.extensions import db, bcrypt
 import datetime
-
+import uuid
 class User(db.Model):
     # Define o nome da tabela no banco
     __tablename__ = "users"
@@ -12,7 +12,8 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True) # Chave primária
     username = db.Column(db.String(80), unique=True, nullable=False) # Nome de usuário
     email = db.Column(db.String(120), unique=True, nullable=False) # Email
-    password_hash = db.Column(db.String(128), nullable=False) # Senha criptografada
+    password_hash = db.Column(db.String(128), nullable=False)# Senha criptografada
+    is_guest = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow) # Data de criação
 
     # --- Relacionamentos ---
@@ -34,3 +35,13 @@ class User(db.Model):
     def __repr__(self):
         # Representação em string do objeto (útil para debug)
         return f'<User {self.username}>'
+    @staticmethod
+    def create_guest_user():
+        """Cria um novo usuário convidado com um username único."""
+        guest_username = f"guest_{uuid.uuid4().hex[:12]}"
+
+        guest_user = User (
+            username=guest_username,
+            is_guest=True
+        )
+        return guest_user

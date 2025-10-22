@@ -62,3 +62,19 @@ def authenticate_user(email, password):
     
     # Se falhar, retorna None
     return None
+
+def create_guest_user():
+    """
+    Cria uma nova conta de convidado e a salva no banco.
+    """
+    try:
+        guest_user = User.create_guest_user()
+
+        db.session.add(guest_user)
+        db.session.commit()
+        
+        return guest_user
+    
+    except Exception as e:
+        db.session.rollback()
+        raise Exception(f"Erro ao criar conta de convidado: {str(e)}")

@@ -79,3 +79,27 @@ def login():
     
     # 5. Retorna o token para o cliente
     return jsonify(access_token=access_token), 200 # 200 OK
+
+@bp.route('/guest', methods=['POST'])
+def create_guest():
+    """
+    Cria uma conta de convidado temporária e retorna um token de acesso.
+    Não recebe JSON.
+    """
+
+    try:
+        guest_user = user_service.create_guest_user()
+    
+        if not guest_user: 
+            return jsonify(error="Não foi possível criar a conta de convidado"), 500
+        
+        acess_token = create_acess_token(identify=guest_user.id)
+        guest_data = user_schema.dump(guest_user)
+
+        return jsonify(
+            acess_token=acess_token,
+            user=guest_data
+        ), 200
+    
+    except Exception as e: 
+        return jsonify(error=str(e)), 500

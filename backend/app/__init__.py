@@ -13,6 +13,9 @@ from app.extensions import db, migrate, bcrypt, jwt, ma
 import google.generativeai as genai
 
 from app.routers import auth
+from app.routers import tasks
+from app.routers import chat
+from app.routers import documents
 
 # --- A FÁBRICA DE APLICAÇÃO ---
 def create_app(config_class=Config):
@@ -34,7 +37,25 @@ def create_app(config_class=Config):
     bcrypt.init_app(app)
     jwt.init_app(app)
     ma.init_app(app)
-    
+    global qdrant
+    qdrant = QdrantClient(
+        host=app.config['QDRANT_HOST'],
+        api_key=app.config['QDRANT_API_KEY'],
+        prefer_grpc=True
+    )
+    try:
+        qdrant.recreate_collection(
+            collection_name=app.config['QDRANT_COLLECTION_NAME'],
+            vectors_config={
+                "size": 768, # Tamanho do vetor do 'text-embedding-004'
+                "distance": "Cosine"
+            }
+        )
+        print(f"Coleção '{app.config['QDRANT_COLLECTION_NAME']}' criada com sucesso.")
+    except Exception as e:
+        # Se a coleção já existir, um erro será lançado.
+        # Em produção, checaríamos o erro, mas para debug, isso é ok.
+        print(f"Não foi possível criar coleção (talvez já exista?): {e}")
     # 5. Rota de Teste (o "Hello World")
     # Nós vamos mover isso para um "Blueprint" (router) depois,
     # mas por agora, deixamos aqui para testar.
@@ -50,5 +71,8 @@ def create_app(config_class=Config):
     # app.register_blueprint(auth.bp, url_prefix='/auth')
     # app.register_blueprint(chat.bp, url_prefix='/chat')
     app.register_blueprint(auth.bp)
+    app.register_blueprint(tasks.bp)
+    app.register_blueprint(chat.bp)
+    app.register_blueprint(documents.bp)
     # Retorna a aplicação configurada
     return app

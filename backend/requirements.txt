@@ -11,3 +11,4 @@ flask-jwt-extended
 python-dotenv
 flask-marshmallow
 marshmallow-sqlalchemy
+langchain

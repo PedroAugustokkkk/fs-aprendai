@@ -6,6 +6,7 @@ from flask_migrate import Migrate
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager
 from flask_marshmallow import Marshmallow
+from qdrant_client import QdrantClient
 # Cria instâncias vazias das extensões
 # Elas não estão ligadas a nenhum app Flask... ainda.
 # Elas serão "ligadas" na nossa fábrica de app.
@@ -14,3 +15,6 @@ migrate = Migrate()
 bcrypt = Bcrypt()
 jwt = JWTManager()
 ma = Marshmallow()
+
+qdrant = QdrantClient(prefer_grpc=True)
+
