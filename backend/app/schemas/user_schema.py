@@ -12,7 +12,7 @@ class UserSchema(ma.SQLAlchemyAutoSchema):
         load_instance = True # Permite carregar dados direto para um objeto User
         # Exclui o 'tasks' e 'chat_histories' do dump principal
         # para não poluir a resposta de usuário (teremos endpoints para eles)
-        exclude = ("tasks", "chat_histories")
+        exclude = ("tasks", "chat_histories", "password_hash")
 
     # --- Validação e Segurança ---
     # Define regras extras para os campos
