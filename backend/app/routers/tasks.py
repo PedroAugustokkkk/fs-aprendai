@@ -55,5 +55,70 @@ def get_tasks():
     except Exception as e:
         return jsonify(error=str(e)), 500
 
-# (Vamos adicionar as rotas de Update e Delete em breve,
-# mas POST e GET são o essencial para começar)
+
+@bp.route('/<int:task_id>', methods=['GET'])
+@jwt_required()
+def get_task(task_id):
+    """
+    Busca uma tarefa específica pelo ID.
+    """
+    current_user_id = get_jwt_identity()
+    try:
+        # O serviço já garante que a tarefa pertence ao usuário
+        task = task_service.get_task_by_id(task_id, current_user_id)
+        if not task:
+            return jsonify(error="Tarefa não encontrada"), 404
+        
+        return jsonify(task_schema.dump(task)), 200
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+
+
+@bp.route('/<int:task_id>', methods=['PUT'])
+@jwt_required()
+def update_task(task_id):
+    """
+    Atualiza uma tarefa (ex: marcar como concluída).
+    Espera JSON: { "content": "Novo texto", "is_completed": true }
+    """
+    current_user_id = get_jwt_identity()
+    json_data = request.get_json()
+    if not json_data:
+        return jsonify(error="Nenhum dado de entrada fornecido"), 400
+
+    # Validação simples (não precisa do schema completo para atualizar)
+    valid_data = {}
+    if 'content' in json_data:
+        valid_data['content'] = json_data['content']
+    if 'is_completed' in json_data:
+        valid_data['is_completed'] = json_data['is_completed']
+        
+    if not valid_data:
+        return jsonify(error="Nenhum campo válido para atualização"), 400
+
+    try:
+        updated_task = task_service.update_task(task_id, valid_data, current_user_id)
+        if not updated_task:
+            return jsonify(error="Tarefa não encontrada"), 404
+            
+        return jsonify(updated_task), 200
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+
+
+@bp.route('/<int:task_id>', methods=['DELETE'])
+@jwt_required()
+def delete_task(task_id):
+    """
+    Deleta uma tarefa.
+    """
+    current_user_id = get_jwt_identity()
+    try:
+        was_deleted = task_service.delete_task(task_id, current_user_id)
+        if not was_deleted:
+            return jsonify(error="Tarefa não encontrada"), 404
+            
+        # Retorna uma resposta vazia com status 204 (No Content)
+        return '', 204
+    except Exception as e:
+        return jsonify(error=str(e)), 500

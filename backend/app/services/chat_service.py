@@ -8,27 +8,34 @@ from app.extensions import db
 from app.models.chat_history_model import ChatHistory
 from app.schemas.chat_history_schema import chat_history_schema
 
-# --- O Cérebro do Tutor (O Prompt de Sistema) ---
-# Esta é a personalidade que definimos, agora morando no backend
+# --- NOVA IMPORTAÇÃO ---
+# Importa nosso serviço de RAG para fazer a busca
+from app.services import rag_service
+
+# --- O NOVO CÉREBRO (RAG-AWARE) ---
+# Esta instrução é CRÍTICA. Ela ensina a IA a priorizar o contexto.
 SYSTEM_INSTRUCTION = """
-Você é um tutor de IA chamado Gênio Guiado. Sua especialidade é ajudar estudantes a resolverem problemas de forma eficiente e estratégica, focando no desenvolvimento do raciocínio.
-Seu método NÃO é dar a resposta, mas sim co-criar o caminho para a solução com o aluno.
+Você é um tutor de IA chamado Gênio Guiado.
+
+REGRA DE OURO: Você deve basear suas respostas no "CONTEXTO FORNECIDO" abaixo.
+Sua especialidade é ajudar estudantes a entenderem o material de estudo deles.
+
 Siga estritamente as seguintes regras:
-1.  **Apresentação Rápida**: Apresente-se brevemente e peça ao aluno para apresentar o tópico ou a questão que ele quer resolver. (Se for o início da conversa).
-2.  **Crie um "Plano de Ataque"**: Ao receber a questão, sua primeira ação é apresentar um plano simples e numerado de como abordá-la.
-3.  **Assuma Compreensão, Ofereça Aprofundamento**: Explique os conceitos em blocos lógicos. Ao final de um bloco, NÃO pergunte "Você entendeu?". Em vez disso, assuma que ele entendeu e convide-o para a próxima ação.
-4.  **Ajuda Progressiva e Adaptativa**: Se o aluno errar ou disser que não sabe, ative um sistema de ajuda em níveis (Dica Conceitual, Exemplo Análogo, Próximo Passo Direto).
+
+1.  **Priorize o Contexto**: Se o "CONTEXTO FORNECIDO" não estiver vazio, sua resposta DEVE ser baseada *exclusivamente* nele. Não use seu conhecimento geral, a menos que o contexto não seja suficiente.
+2.  **Seja Honesto**: Se a resposta para a pergunta do aluno não estiver no "CONTEXTO FORNECIDO", diga "Essa informação não parece estar no material de estudo que você enviou. Posso tentar responder com meu conhecimento geral?".
+3.  **Não Dê Respostas Prontas**: Mesmo usando o contexto, seu objetivo é guiar. Se o contexto é um parágrafo que define 'Mitocôndria', não o recite. Use-o para criar um "Plano de Ataque" (Regra 4).
+4.  **Crie um "Plano de Ataque"**: Ao receber uma questão, apresente um plano de como abordá-la usando o contexto.
 5.  **Seja Conciso e Focado**: Mantenha a linguagem direta e objetiva, mas sempre encorajadora.
-6.  **Resumo Estratégico**: Ao final, quando o aluno chegar à resposta, parabenize-o e faça um resumo rápido da ESTRATÉGIA usada.
 """
 
 def send_chat_message(prompt: str, session_id: str, user_id: int):
     """
-    Processa uma mensagem de chat, consulta o Gemini e salva o histórico.
+    Processa uma mensagem de chat, consulta o RAG,
+    injeta o contexto no Gemini e salva o histórico.
     """
     try:
-        # --- 1. Salvar a Mensagem do Usuário ---
-        # Primeiro, salvamos a pergunta do usuário no banco.
+        # --- 1. Salvar a Mensagem do Usuário (igual a antes) ---
         user_message = ChatHistory(
             session_id=session_id,
             role="user",
@@ -37,15 +44,12 @@ def send_chat_message(prompt: str, session_id: str, user_id: int):
         )
         db.session.add(user_message)
         
-        # --- 2. Carregar o Histórico da Conversa ---
-        # Busca todas as mensagens desta sessão e deste usuário, em ordem.
+        # --- 2. Carregar o Histórico da Conversa (igual a antes) ---
         history_db = ChatHistory.query.filter_by(
             user_id=user_id, 
             session_id=session_id
         ).order_by(ChatHistory.timestamp.asc()).all()
 
-        # Formata o histórico para o formato que a API do Gemini espera
-        # (Remove a última mensagem, pois é a que estamos respondendo)
         history_for_gemini = []
         for msg in history_db:
              history_for_gemini.append({
@@ -53,21 +57,43 @@ def send_chat_message(prompt: str, session_id: str, user_id: int):
                  "parts": [msg.message]
              })
 
-        # --- 3. Inicializar e Chamar o Modelo Gemini ---
-        # Inicializa o modelo com o cérebro (system_instruction)
-        model = genai.GenerativeModel(
-            model_name="gemini-2.5-flash-latest", # Usando o modelo robusto
-            system_instruction=SYSTEM_INSTRUCTION
+        # --- 3. NOVO PASSO: Buscar Contexto no RAG (Qdrant) ---
+        # Usa o prompt do usuário para buscar chunks relevantes no Qdrant
+        contexts = rag_service.search_relevant_chunks(
+            query=prompt, 
+            user_id=user_id
         )
         
-        # Inicia a sessão de chat, passando o histórico formatado
-        chat_session = model.start_chat(history=history_for_gemini[:-1]) # Pega todo o histórico, exceto a msg atual
+        # --- 4. NOVO PASSO: Criar o "Prompt Aumentado" ---
+        # Prepara o contexto para ser injetado no prompt
+        context_string = "Nenhum contexto encontrado no material de estudo."
+        if contexts:
+            # Concatena os chunks de texto encontrados
+            context_string = "\n\n".join(contexts)
 
-        # Envia a nova mensagem (prompt) para o Gemini
-        response = chat_session.send_message(prompt)
+        # Monta o prompt final que será enviado ao Gemini
+        # Isso "aumenta" o prompt do usuário com o contexto do RAG
+        augmented_prompt = f"""
+        --- CONTEXTO FORNECIDO ---
+        {context_string}
+        --- FIM DO CONTEXTO ---
 
-        # --- 4. Salvar a Resposta da IA ---
-        # Salva a resposta do modelo no banco de dados.
+        PERGUNTA DO ALUNO:
+        {prompt}
+        """
+
+        # --- 5. Inicializar e Chamar o Modelo Gemini ---
+        model = genai.GenerativeModel(
+            model_name="gemini-pro",
+            system_instruction=SYSTEM_INSTRUCTION # A nova instrução RAG-aware
+        )
+        
+        chat_session = model.start_chat(history=history_for_gemini[:-1])
+
+        # Envia o PROMPT AUMENTADO (RAG) para o Gemini
+        response = chat_session.send_message(augmented_prompt)
+
+        # --- 6. Salvar a Resposta da IA (igual a antes) ---
         model_message = ChatHistory(
             session_id=session_id,
             role="model",
@@ -76,13 +102,12 @@ def send_chat_message(prompt: str, session_id: str, user_id: int):
         )
         db.session.add(model_message)
         
-        # --- 5. Commitar tudo no Banco ---
+        # --- 7. Commitar tudo (igual a antes) ---
         db.session.commit()
 
-        # --- 6. Retornar a Resposta da IA ---
-        # Serializa a resposta da IA para enviar de volta ao front-end
+        # --- 8. Retornar a Resposta da IA (igual a antes) ---
         return chat_history_schema.dump(model_message)
 
     except Exception as e:
-        db.session.rollback() # Desfaz as alterações se algo der errado
+        db.session.rollback()
         raise Exception(f"Erro no serviço de chat: {str(e)}")
