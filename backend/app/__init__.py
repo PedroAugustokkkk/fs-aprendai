@@ -12,6 +12,8 @@ from app.extensions import db, migrate, bcrypt, jwt, ma
 # Importa a biblioteca do Gemini
 import google.generativeai as genai
 
+from app.routers import auth
+
 # --- A FÁBRICA DE APLICAÇÃO ---
 def create_app(config_class=Config):
     """
@@ -47,6 +49,6 @@ def create_app(config_class=Config):
     # from app.routers import auth, chat
     # app.register_blueprint(auth.bp, url_prefix='/auth')
     # app.register_blueprint(chat.bp, url_prefix='/chat')
-
+    app.register_blueprint(auth.bp)
     # Retorna a aplicação configurada
     return app
