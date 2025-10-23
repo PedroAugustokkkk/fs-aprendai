@@ -33,7 +33,7 @@ class Config:
     # Você pode adicionar outras configs JWT aqui, como tempo de expiração
     # JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=30) 
     QDRANT_HOST = os.environ.get('QDRANT_HOST')
-    QDRAND_API_KEY = os.environ.get('QDRANT_API_KEY')
+    QDRANT_API_KEY = os.environ.get('QDRANT_API_KEY')
     QDRANT_COLLECTION_NAME = "g_guiado_docs"
 # Exporta uma instância da classe para ser usada no app
 settings = Config()
