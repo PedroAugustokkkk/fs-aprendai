@@ -5,7 +5,7 @@ from app.extensions import qdrant # Nosso cliente Qdrant
 from app.core.config import settings # Nossas configurações
 import pypdf
 from io import BytesIO
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 import uuid
 # Importa models necessários para delete
 from qdrant_client import models
