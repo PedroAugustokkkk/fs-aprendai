@@ -11,7 +11,7 @@ from app.core.config import Config
 # (Adicionei a importação do qdrant aqui também)
 from app.extensions import db, migrate, bcrypt, jwt, ma, qdrant 
 from qdrant_client import QdrantClient # <--- Importe o QdrantClient
-
+from qdrant_client.http.models import VectorParams, Distance
 # Importa a biblioteca do Gemini
 import google.generativeai as genai
 
@@ -36,7 +36,7 @@ def create_app(config_class=Config):
     origins = [
         "http://localhost:3000", # Se você ainda usa porta 3000 localmente
         "http://localhost:8080", # A porta que o Vite/Lovable pode usar localmente
-        "https://aprendai2.vercel.app" # URL REAL do seu site na Vercel
+        "https://aprendai.vercel.app" # URL REAL do seu site na Vercel
     ]
     CORS(app, resources={r"/*": {"origins": origins}})
     # --- Fim da configuração do CORS ---
@@ -68,10 +68,10 @@ def create_app(config_class=Config):
         # (Usamos 'create_collection' em vez de 'recreate_collection' para evitar apagar dados)
         qdrant.create_collection(
             collection_name=app.config['QDRANT_COLLECTION_NAME'],
-            vectors_config={
-                "size": 768, # Tamanho do vetor do 'text-embedding-004'
-                "distance": "Cosine"
-            }
+            vectors_config=VectorParams(
+                size=768, 
+                distance=Distance.COSINE
+            )
         )
         print(f"Coleção '{app.config['QDRANT_COLLECTION_NAME']}' verificada/criada.")
     except Exception as e:
