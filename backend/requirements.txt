@@ -13,3 +13,4 @@ flask-marshmallow
 marshmallow-sqlalchemy
 flask-cors 
 gunicorn
+MarkupSafe
