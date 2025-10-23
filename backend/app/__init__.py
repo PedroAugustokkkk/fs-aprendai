@@ -33,7 +33,12 @@ def create_app(config_class=Config):
     # Aplica o CORS à sua aplicação Flask
     # Permite requisições de qualquer origem (ideal para dev)
     # Em produção, troque "*" pela URL da Vercel
-    CORS(app, resources={r"/*": {"origins": "*"}})
+    origins = [
+        "http://localhost:3000", # Se você ainda usa porta 3000 localmente
+        "http://localhost:8080", # A porta que o Vite/Lovable pode usar localmente
+        "https://seu-genio-guiado.vercel.app" # URL REAL do seu site na Vercel
+    ]
+    CORS(app, resources={r"/*": {"origins": origins}})
     # --- Fim da configuração do CORS ---
     
     # 3. Carrega a configuração a partir da classe Config
