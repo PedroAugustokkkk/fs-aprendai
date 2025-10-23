@@ -1,6 +1,7 @@
 # /app/routers/documents.py
 
-from flask import Blueprint, request, jsonify, escape
+from flask import Blueprint, request, jsonify
+from markupsafe import escape
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.services import rag_service
 # --- NOVA IMPORTAÇÃO ---
