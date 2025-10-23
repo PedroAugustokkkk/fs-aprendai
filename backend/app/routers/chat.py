@@ -1,6 +1,7 @@
 # /app/routers/chat.py
 
-from flask import Blueprint, request, jsonify, escape
+from flask import Blueprint, request, jsonify
+from markupsafe import escape
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.services import chat_service
 from marshmallow import ValidationError
