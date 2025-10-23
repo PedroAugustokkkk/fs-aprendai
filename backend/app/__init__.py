@@ -36,7 +36,7 @@ def create_app(config_class=Config):
     origins = [
         "http://localhost:3000", # Se você ainda usa porta 3000 localmente
         "http://localhost:8080", # A porta que o Vite/Lovable pode usar localmente
-        "https://seu-genio-guiado.vercel.app" # URL REAL do seu site na Vercel
+        "https://aprendai2.vercel.app" # URL REAL do seu site na Vercel
     ]
     CORS(app, resources={r"/*": {"origins": origins}})
     # --- Fim da configuração do CORS ---
