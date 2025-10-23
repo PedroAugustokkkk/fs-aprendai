@@ -12,5 +12,4 @@ pypdf
 flask-marshmallow
 marshmallow-sqlalchemy
 flask-cors 
-nest_asyncio
 gunicorn
