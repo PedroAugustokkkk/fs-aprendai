@@ -8,6 +8,7 @@ python-dotenv
 google-generativeai
 qdrant-client
 langchain
+langchain-text-splitters
 pypdf
 flask-marshmallow
 marshmallow-sqlalchemy
