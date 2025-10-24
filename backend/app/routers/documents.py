@@ -32,7 +32,7 @@ def upload_document():
             file_storage=file,
             user_id=current_user_id
         )
-        return jsonify(message=result_message), 201
+        return jsonify(message=result_message), 202
     except Exception as e:
         return jsonify(error=str(e)), 500
 

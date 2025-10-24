@@ -1,124 +1,137 @@
-# /app/routers/tasks.py
+# /app/tasks.py
 
-from flask import Blueprint, request, jsonify
-# Importa o decorator de proteção e a função para pegar a ID do usuário
-from flask_jwt_extended import jwt_required, get_jwt_identity
-from app.services import task_service
-from app.schemas.task_schema import task_schema, tasks_schema
-from marshmallow import ValidationError
+import os # Necessário para lidar com caminhos de arquivos
+import pypdf # Movido do rag_service
+from io import BytesIO # Movido do rag_service
+import google.generativeai as genai # Movido do rag_service
+from qdrant_client import models # Movido do rag_service
+from langchain_text_splitters import RecursiveCharacterTextSplitter # Movido do rag_service
+import uuid # Movido do rag_service
 
-# Cria o Blueprint para /tasks
-bp = Blueprint('tasks', __name__, url_prefix='/tasks')
+from celery import Celery # Importa o Celery
+from app import create_app # Importa nossa factory de app Flask
+from app.extensions import qdrant # Importa o cliente Qdrant
+from app.core.config import settings # Importa nossas configurações
 
-@bp.route('/', methods=['POST'])
-@jwt_required() # <--- MÁGICA AQUI: Protege este endpoint
-def create_task():
+# 1. Função para criar a instância do Celery
+def make_celery(app):
+    # Configura o Celery
+    celery = Celery(
+        app.import_name, # Usa o nome do app Flask
+        # Usa nosso DATABASE_URL como broker (a fila de tarefas)
+        broker=app.config['SQLALCHEMY_DATABASE_URI'],
+        # Usa o DATABASE_URL também para guardar resultados (se precisarmos)
+        backend=app.config['SQLALCHEMY_DATABASE_URI']
+    )
+    # Atualiza a configuração do Celery com a do Flask
+    celery.conf.update(app.config)
+
+    # Subclasse de Tarefa para "envolver" a execução da tarefa
+    # no contexto do app Flask.
+    class ContextTask(celery.Task):
+        def __call__(self, *args, **kwargs):
+            # Isso garante que db, qdrant, etc. estejam
+            # configurados e acessíveis dentro da tarefa.
+            with app.app_context():
+                return self.run(*args, **kwargs)
+
+    # Define a classe de Tarefa personalizada como base
+    celery.Task = ContextTask
+    return celery
+
+# 2. Cria o app Flask "fora"
+#    Isso é necessário para que o Celery possa acessar a config
+flask_app = create_app()
+
+# 3. Cria a instância do Celery
+celery_app = make_celery(flask_app)
+
+# 4. A TAREFA (O CÓDIGO DO WORKER)
+#    Esta é a função que será executada em background.
+#    Note o decorador @celery_app.task
+@celery_app.task(name='tasks.process_document_task')
+def process_document_task(file_path: str, user_id: int, original_filename: str):
     """
-    Cria uma nova tarefa. Requer autenticação JWT.
-    Espera JSON: { "content": "Minha nova tarefa" }
+    Tarefa assíncrona que processa o PDF e o armazena no Qdrant.
+    Esta função contém a lógica que *antes* estava no rag_service.
     """
-    # 1. Pega a ID do usuário a partir do token JWT
-    current_user_id = get_jwt_identity()
-    
-    # 2. Pega o JSON da requisição
-    json_data = request.get_json()
-    if not json_data:
-        return jsonify(error="Nenhum dado de entrada fornecido"), 400
-
-    # 3. Valida os dados com o schema
     try:
-        data = task_schema.load(json_data)
-    except ValidationError as err:
-        return jsonify(errors=err.messages), 422
+        print(f"[CELERY WORKER] Iniciando processamento de: {original_filename} para user {user_id}")
 
-    # 4. Chama o serviço para criar a tarefa
-    try:
-        new_task = task_service.create_task(data, current_user_id)
-        return jsonify(new_task), 201
-    except Exception as e:
-        return jsonify(error=str(e)), 500
-
-
-@bp.route('/', methods=['GET'])
-@jwt_required() # <--- MÁGICA AQUI: Protege este endpoint
-def get_tasks():
-    """
-    Busca todas as tarefas do usuário logado. Requer autenticação JWT.
-    """
-    # 1. Pega a ID do usuário a partir do token JWT
-    current_user_id = get_jwt_identity()
-
-    # 2. Chama o serviço para buscar as tarefas
-    try:
-        tasks = task_service.get_tasks_by_user(current_user_id)
-        return jsonify(tasks), 200
-    except Exception as e:
-        return jsonify(error=str(e)), 500
-
-
-@bp.route('/<int:task_id>', methods=['GET'])
-@jwt_required()
-def get_task(task_id):
-    """
-    Busca uma tarefa específica pelo ID.
-    """
-    current_user_id = get_jwt_identity()
-    try:
-        # O serviço já garante que a tarefa pertence ao usuário
-        task = task_service.get_task_by_id(task_id, current_user_id)
-        if not task:
-            return jsonify(error="Tarefa não encontrada"), 404
+        # --- 1. Ler o Arquivo (do caminho temporário) e Extrair o Texto ---
+        with open(file_path, 'rb') as f:
+            pdf_bytes = f.read()
         
-        return jsonify(task_schema.dump(task)), 200
-    except Exception as e:
-        return jsonify(error=str(e)), 500
-
-
-@bp.route('/<int:task_id>', methods=['PUT'])
-@jwt_required()
-def update_task(task_id):
-    """
-    Atualiza uma tarefa (ex: marcar como concluída).
-    Espera JSON: { "content": "Novo texto", "is_completed": true }
-    """
-    current_user_id = get_jwt_identity()
-    json_data = request.get_json()
-    if not json_data:
-        return jsonify(error="Nenhum dado de entrada fornecido"), 400
-
-    # Validação simples (não precisa do schema completo para atualizar)
-    valid_data = {}
-    if 'content' in json_data:
-        valid_data['content'] = json_data['content']
-    if 'is_completed' in json_data:
-        valid_data['is_completed'] = json_data['is_completed']
+        pdf_file = BytesIO(pdf_bytes)
+        reader = pypdf.PdfReader(pdf_file)
         
-    if not valid_data:
-        return jsonify(error="Nenhum campo válido para atualização"), 400
-
-    try:
-        updated_task = task_service.update_task(task_id, valid_data, current_user_id)
-        if not updated_task:
-            return jsonify(error="Tarefa não encontrada"), 404
+        full_text = ""
+        for page in reader.pages:
+            full_text += page.extract_text() or ""
             
-        return jsonify(updated_task), 200
-    except Exception as e:
-        return jsonify(error=str(e)), 500
+        if not full_text:
+            raise Exception("Não foi possível extrair texto do PDF.")
 
+        # --- 2. "Chunking" ---
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=1000,
+            chunk_overlap=100,
+            separators=["\n\n", "\n", " ", ""]
+        )
+        chunks = text_splitter.split_text(full_text)
+        
+        if not chunks:
+            raise Exception("O texto era muito curto para ser processado.")
 
-@bp.route('/<int:task_id>', methods=['DELETE'])
-@jwt_required()
-def delete_task(task_id):
-    """
-    Deleta uma tarefa.
-    """
-    current_user_id = get_jwt_identity()
-    try:
-        was_deleted = task_service.delete_task(task_id, current_user_id)
-        if not was_deleted:
-            return jsonify(error="Tarefa não encontrada"), 404
-            
-        # Retorna uma resposta vazia com status 204 (No Content)
-        return '', 204
+        # --- 3. "Embedding" ---
+        # Note que o 'genai' está configurado no app_context
+        result = genai.embed_content(
+            model="models/text-embedding-004",
+            content=chunks,
+            task_type="RETRIEVAL_DOCUMENT"
+        )
+        embeddings = result['embedding']
+
+        # --- 4. Armazenar no Qdrant ---
+        points_to_insert = []
+        point_ids = [str(uuid.uuid4()) for _ in chunks]
+
+        for i, chunk_text in enumerate(chunks):
+            points_to_insert.append(
+                models.PointStruct(
+                    id=point_ids[i],
+                    vector=embeddings[i],
+                    payload={
+                        'text': chunk_text,
+                        'user_id': user_id,
+                        'doc_name': original_filename # Nome do arquivo original
+                    }
+                )
+            )
+        
+        # O 'qdrant' também está configurado no app_context
+        qdrant.upsert(
+            collection_name=COLLECTION_NAME,
+            points=points_to_insert,
+            wait=True
+        )
+
+        print(f"[CELERY WORKER] Sucesso: {original_filename} processado. {len(chunks)} chunks criados.")
+        
+        # --- 5. Limpar o arquivo temporário ---
+        os.remove(file_path)
+        print(f"[CELERY WORKER] Arquivo temporário {file_path} removido.")
+        
+        return f"Processado com sucesso: {original_filename}"
+
     except Exception as e:
-        return jsonify(error=str(e)), 500
+        print(f"ERRO no CELERY WORKER ao processar {original_filename}: {e}")
+        # Tenta remover o arquivo temporário mesmo em caso de erro
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            print(f"[CELERY WORKER] Arquivo temporário {file_path} removido após erro.")
+        # Podemos re-lançar o erro para o Celery registrar como 'FAILURE'
+        raise e
+
+# Define o nome da coleção (copiado do rag_service original)
+COLLECTION_NAME = settings.QDRANT_COLLECTION_NAME
