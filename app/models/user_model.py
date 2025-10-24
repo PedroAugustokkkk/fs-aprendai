@@ -12,7 +12,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True) # Chave primária
     username = db.Column(db.String(80), unique=True, nullable=False) # Nome de usuário
     email = db.Column(db.String(120), unique=True, nullable=True) # Email
-    password_hash = db.Column(db.String(128), nullable=False)# Senha criptografada
+    password_hash = db.Column(db.String(128), nullable=True)# Senha criptografada
     is_guest = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow) # Data de criação
 
