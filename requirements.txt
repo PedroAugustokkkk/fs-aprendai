@@ -1,0 +1,17 @@
+flask
+flask-sqlalchemy
+flask-migrate
+psycopg2-binary
+flask-bcrypt
+flask-jwt-extended
+python-dotenv
+google-generativeai
+qdrant-client
+langchain
+langchain-text-splitters
+pypdf
+flask-marshmallow
+marshmallow-sqlalchemy
+flask-cors 
+gunicorn
+MarkupSafe
