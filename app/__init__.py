@@ -2,7 +2,7 @@
 
 # Importa a classe principal do Flask
 from flask import Flask, jsonify
-from flask_cors import CORS # <--- 1. Importe o CORS aqui
+from flask_cors import CORS 
 
 # Importa nossa classe de configuração
 from app.core.config import Config
@@ -38,7 +38,10 @@ def create_app(config_class=Config):
         "http://localhost:8080", # A porta que o Vite/Lovable pode usar localmente
         "https://aprendai.vercel.app" # URL REAL do seu site na Vercel
     ]
-    CORS(app, resources={r"/*": {"origins": origins}})
+    CORS(app,
+         resources={r"/*": {"origins": origins}},
+         supports_credentials=True
+        )
     # --- Fim da configuração do CORS ---
     
     # 3. Carrega a configuração a partir da classe Config
