@@ -7,7 +7,7 @@ class UserSchema(ma.SQLAlchemyAutoSchema):
 
     class Meta:
         model = User
-        load_instance = True
+        load_instance = False
         exclude = ("password_hash", "tasks", "chat_histories")
 
     id = ma.auto_field(dump_only=True)
