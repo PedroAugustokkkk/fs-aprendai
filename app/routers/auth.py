@@ -42,7 +42,7 @@ def login():
         
     access_token = create_access_token(identity=user.id)
     user_data = user_schema.dump(user)
-    return jsonify(access_token=access_token), 200
+    return jsonify(access_token=access_token, user=user_data), 200
 
 @bp.route('/guest', methods=['POST'])
 def create_guest():
