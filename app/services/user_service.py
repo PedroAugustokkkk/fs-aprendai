@@ -4,19 +4,19 @@ from app.schemas.user_schema import user_schema
 from marshmallow import ValidationError
 
 def create_user(data):
-    if User.query.filter_by(username=data.username).first():
+    if User.query.filter_by(username=data['username']).first():
         raise ValidationError('Nome de usuário já existe.', field_name='username')
-    if User.query.filter_by(email=data.email).first():
+    if User.query.filter_by(email=data['email']).first():
         raise ValidationError('E-mail já cadastrado.', field_name='email')
     
     # Cria o usuário não-convidado
     new_user = User(
-        username=data.username,
-        email=data.email,
+        username=data.['username'],
+        email=data.['email'],
         is_guest=False # Garante que é um usuário registrado
     )
     # Define a senha (o campo 'password' vem do schema, hasheado aqui)
-    new_user.set_password(data.password) 
+    new_user.set_password(data.['password']) 
 
     try:
         db.session.add(new_user)
