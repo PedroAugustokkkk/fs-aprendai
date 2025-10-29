@@ -1,4 +1,3 @@
-# /app/services/user_service.py
 from app.models.user_model import User # Importa o modelo User
 from app.extensions import db # Importa a instância do banco de dados
 from app.schemas.user_schema import user_schema # Importa o user_schema
@@ -41,24 +40,24 @@ from marshmallow import ValidationError # Importa o ValidationError do marshmall
 #     return None # Retorna None se a autenticação falhar
 
 def create_guest_user(): # Define a função para criar um usuário convidado
-    # Esta função continua essencial
-    try: # Tenta criar e salvar o usuário convidado
-        guest_user = User.create_guest_user() # Cria a instância do usuário convidado usando o método estático do modelo
-        db.session.add(guest_user) # Adiciona o convidado à sessão
-        db.session.commit() # Salva o convidado no banco
-        return guest_user # Retorna o objeto do usuário convidado criado
-    except Exception as e: # Captura qualquer exceção
-        db.session.rollback() # Desfaz as alterações na sessão
-        raise Exception(f"Erro ao criar conta de convidado: {str(e)}") # Lança uma exceção com a mensagem de erro
+
+    try: # Tenta criar e salvar o usuário convidado
+        guest_user = User.create_guest_user() # Cria a instância do usuário convidado usando o método estático do modelo
+        db.session.add(guest_user) # Adiciona o convidado à sessão
+        db.session.commit() # Salva o convidado no banco
+        return guest_user # Retorna o objeto do usuário convidado criado
+    except Exception as e: # Captura qualquer exceção
+        db.session.rollback() # Desfaz as alterações na sessão
+        raise Exception(f"Erro ao criar conta de convidado: {str(e)}") # Lança uma exceção com a mensagem de erro
 
 def get_user_by_id(user_id: int): # Define a função para buscar um usuário pelo ID
-    # Esta função continua essencial (usada pela rota /me)
-    """ # Docstring da função
-    Busca um usuário pelo seu ID. # Descrição
-    """ # Fim da docstring
-    try: # Tenta buscar o usuário pelo ID
-        user = User.query.get(user_id) # Usa o método .get() que busca pela chave primária
-        return user # Retorna o objeto usuário encontrado (ou None se não encontrado)
-    except Exception as e: # Captura qualquer exceção
-        print(f"Erro ao buscar usuário por ID: {e}") # Loga o erro no servidor
-        raise Exception(f"Falha ao buscar dados do usuário: {str(e)}") # Lança uma exceção com a mensagem de erro
+
+    """ # Docstring da função
+    Busca um usuário pelo seu ID. # Descrição
+    """ # Fim da docstring
+    try: # Tenta buscar o usuário pelo ID
+        user = User.query.get(user_id) # Usa o método .get() que busca pela chave primária
+        return user # Retorna o objeto usuário encontrado (ou None se não encontrado)
+    except Exception as e: # Captura qualquer exceção
+        print(f"Erro ao buscar usuário por ID: {e}") # Loga o erro no servidor
+        raise Exception(f"Falha ao buscar dados do usuário: {str(e)}") # Lança uma exceção com a mensagem de erro
