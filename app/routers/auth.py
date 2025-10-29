@@ -1,5 +1,3 @@
-# /app/routers/auth.py
-
 from flask import Blueprint, request, jsonify # Importa Blueprint, request, jsonify do Flask
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity # Importa create_access_token, jwt_required, get_jwt_identity do flask_jwt_extended
 from app.services import user_service # Importa o user_service
@@ -44,33 +42,33 @@ bp = Blueprint('auth', __name__, url_prefix='/auth') # Cria um Blueprint para au
 
 @bp.route('/guest', methods=['POST']) # Define a rota para criar convidado com método POST
 def create_guest(): # Define a função para criar convidado
-    try: # Tenta criar o usuário convidado
-        # Esta rota continua funcionando para criar o convidado
-        guest_user = user_service.create_guest_user() # Chama a função create_guest_user do user_service
-        if not guest_user: return jsonify(error="Não foi possível criar a conta de convidado"), 500 # Retorna erro se não foi possível criar o convidado
-            
-        access_token = create_access_token(identity=guest_user.id) # Cria um token de acesso JWT com a ID do convidado
-        guest_data = user_schema.dump(guest_user) # Serializa os dados do convidado usando o user_schema
-        
-        return jsonify(access_token=access_token, user=guest_data), 200 # Retorna o token de acesso e os dados do convidado com status 200
-    except Exception as e: # Captura qualquer exceção
-        print(f"ERRO /guest: {e}") # Loga o erro no servidor
-        return jsonify(error="Erro interno ao criar convidado."), 500 # Retorna erro interno com status 500
+    try: # Tenta criar o usuário convidado
+
+        guest_user = user_service.create_guest_user() # Chama a função create_guest_user do user_service
+        if not guest_user: return jsonify(error="Não foi possível criar a conta de convidado"), 500 # Retorna erro se não foi possível criar o convidado
+
+        access_token = create_access_token(identity=guest_user.id) # Cria um token de acesso JWT com a ID do convidado
+        guest_data = user_schema.dump(guest_user) # Serializa os dados do convidado usando o user_schema
+ 
+        return jsonify(access_token=access_token, user=guest_data), 200 # Retorna o token de acesso e os dados do convidado com status 200
+    except Exception as e: # Captura qualquer exceção
+        print(f"ERRO /guest: {e}") # Loga o erro no servidor
+        return jsonify(error="Erro interno ao criar convidado."), 500 # Retorna erro interno com status 500
 
 @bp.route('/me', methods=['GET']) # Define a rota para buscar dados do usuário atual com método GET
 @jwt_required() # Protege a rota, exigindo um token JWT válido
 def get_current_user(): # Define a função para buscar dados do usuário atual
-    """ # Docstring da função
-    Retorna os dados do usuário logado (baseado no token JWT). # Descrição
-    """ # Fim da docstring
-    current_user_id = get_jwt_identity() # Pega a ID do usuário (identity) do token JWT
-    try: # Tenta buscar o usuário pelo ID
-        user = user_service.get_user_by_id(current_user_id) # Chama a função get_user_by_id do user_service
-        if not user: # Verifica se o usuário foi encontrado
-            return jsonify(error="Usuário não encontrado"), 404 # Retorna erro 404 se o usuário não for encontrado
-        
-        # Usa o schema para serializar os dados (sem senha)
-        return jsonify(user_schema.dump(user)), 200 # Serializa e retorna os dados do usuário com status 200
-    except Exception as e: # Captura qualquer exceção
-        print(f"ERRO /me: {e}") # Loga o erro no servidor
-        return jsonify(error="Erro ao buscar dados do usuário."), 500 # Retorna erro interno com status 500
+    """ # Docstring da função
+    Retorna os dados do usuário logado (baseado no token JWT). # Descrição
+    """ # Fim da docstring
+    current_user_id = get_jwt_identity() # Pega a ID do usuário (identity) do token JWT
+    try: # Tenta buscar o usuário pelo ID
+        user = user_service.get_user_by_id(current_user_id) # Chama a função get_user_by_id do user_service
+        if not user: # Verifica se o usuário foi encontrado
+            return jsonify(error="Usuário não encontrado"), 404 # Retorna erro 404 se o usuário não for encontrado
+
+
+        return jsonify(user_schema.dump(user)), 200 # Serializa e retorna os dados do usuário com status 200
+    except Exception as e: # Captura qualquer exceção
+        print(f"ERRO /me: {e}") # Loga o erro no servidor
+        return jsonify(error="Erro ao buscar dados do usuário."), 500 # Retorna erro interno com status 500
