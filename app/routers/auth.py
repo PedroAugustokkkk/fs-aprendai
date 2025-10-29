@@ -41,6 +41,7 @@ def login():
     if not user: return jsonify(error="Email ou senha inválidos"), 401
         
     access_token = create_access_token(identity=user.id)
+    user_data = user_schema.dump(user)
     return jsonify(access_token=access_token), 200
 
 @bp.route('/guest', methods=['POST'])
