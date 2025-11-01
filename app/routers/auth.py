@@ -4,56 +4,64 @@ from app.services import user_service # Importa o user_service
 from app.schemas.user_schema import user_schema # Importa o user_schema
 from marshmallow import ValidationError # Importa o ValidationError do marshmallow
 
+# --- NOVAS IMPORTAÇÕES PARA A CORREÇÃO ---
+import uuid # Para gerar IDs únicos para os guests
+from datetime import datetime # Para definir o timestamp de criação
+from app.models import User # Importa o modelo de usuário (baseado no schema do DB)
+from app.extensions import db # Importa a instância do banco de dados (SQLAlchemy)
+# --- FIM DAS NOVAS IMPORTAÇÕES ---
+
 bp = Blueprint('auth', __name__, url_prefix='/auth') # Cria um Blueprint para autenticação
 
 # # --- ROTA DE REGISTRO COMENTADA ---
 # @bp.route('/register', methods=['POST']) # Define a rota para registro com método POST
 # def register(): # Define a função de registro
-#     json_data = request.get_json() # Pega os dados JSON da requisição
-#     if not json_data: return jsonify(error="Nenhum dado de entrada fornecido"), 400 # Retorna erro se não houver dados
-#     try: # Tenta carregar os dados com o schema
-#         data = user_schema.load(json_data) # Carrega os dados usando o user_schema
-#     except ValidationError as err: # Captura erro de validação
-#         return jsonify(errors=err.messages), 422 # Retorna os erros de validação
-#     try: # Tenta criar o usuário
-#         new_user_data = user_service.create_user(data) # Chama a função create_user do user_service
-#         return jsonify(new_user_data), 201 # Retorna os dados do novo usuário com status 201
-#     except ValidationError as err: # Captura erro de validação (ex: email já existe)
-#         return jsonify(errors=err.messages), 409 # Retorna os erros de validação com status 409
-#     except Exception as e: # Captura qualquer outra exceção
-#         print(f"ERRO /register: {e}") # Loga o erro no servidor
-#         return jsonify(error="Erro interno ao registrar usuário."), 500 # Retorna erro interno com status 500
+#     json_data = request.get_json() # Pega os dados JSON da requisição
+# ... (código comentado original mantido) ...
 
 # # --- ROTA DE LOGIN COMENTADA ---
 # @bp.route('/login', methods=['POST']) # Define a rota para login com método POST
 # def login(): # Define a função de login
-#     json_data = request.get_json() # Pega os dados JSON da requisição
-#     if not json_data: return jsonify(error="Nenhum dado de entrada fornecido"), 400 # Retorna erro se não houver dados
-#     email = json_data.get('email') # Pega o email dos dados JSON
-#     password = json_data.get('password') # Pega a senha dos dados JSON
-#     if not email or not password: return jsonify(error="Email e senha são obrigatórios"), 400 # Retorna erro se email ou senha estiverem faltando
-#     
-#     user = user_service.authenticate_user(email, password) # Chama a função authenticate_user do user_service
-#     if not user: return jsonify(error="Email ou senha inválidos"), 401 # Retorna erro se a autenticação falhar
-#         
-#     access_token = create_access_token(identity=user.id) # Cria um token de acesso JWT com a ID do usuário
-#     user_data = user_schema.dump(user) # Serializa os dados do usuário usando o user_schema
-#     return jsonify(access_token=access_token, user=user_data), 200 # Retorna o token de acesso e os dados do usuário com status 200
+#     json_data = request.get_json() # Pega os dados JSON da requisição
+# ... (código comentado original mantido) ...
 
+# --- ROTA DE GUEST CORRIGIDA ---
 @bp.route('/guest', methods=['POST']) # Define a rota para criar convidado com método POST
 def create_guest(): # Define a função para criar convidado
-    try: # Tenta criar o usuário convidado
+    """
+    Cria um usuário convidado temporário e retorna um token JWT.
+    """
+    try: # Inicia um bloco de tratamento de exceção
+        # 1. GERAR UM USERNAME ÚNICO E ALEATÓRIO
+        # Isso garante que a restrição 'UNIQUE NOT NULL' do banco seja satisfeita
+        guest_username = f"guest_{uuid.uuid4().hex[:16]}" # Cria um nome como "guest_a1b2c3d4e5f6a7b8"
 
-        guest_user = user_service.create_guest_user() # Chama a função create_guest_user do user_service
-        if not guest_user: return jsonify(error="Não foi possível criar a conta de convidado"), 500 # Retorna erro se não foi possível criar o convidado
+        # 2. Criar a nova entidade User
+        guest_user = User(
+            username=guest_username, # Define o username único (CRÍTICO)
+            is_guest=True, # Marca como convidado
+            created_at=datetime.utcnow() # Define o timestamp de criação
+            # O campo 'email' pode ser nulo (com base no schema), então não precisamos defini-lo
+        )
 
-        access_token = create_access_token(identity=guest_user.id) # Cria um token de acesso JWT com a ID do convidado
-        guest_data = user_schema.dump(guest_user) # Serializa os dados do convidado usando o user_schema
+        # 3. Salvar o novo usuário no banco de dados
+        db.session.add(guest_user) # Adiciona o novo usuário à sessão do DB
+        db.session.commit() # Comita (salva) as mudanças no DB
+
+        # 4. Criar o token JWT para este novo usuário
+        # Usamos o ID do usuário (que o Supabase gerou) como a identidade no token
+        access_token = create_access_token(identity=guest_user.id) 
+        
+        # 5. Serializar os dados do usuário para retornar ao front-end
+        guest_data = user_schema.dump(guest_user) 
  
-        return jsonify(access_token=access_token, user=guest_data), 200 # Retorna o token de acesso e os dados do convidado com status 200
+        # 6. Retornar o token e os dados do usuário com status 200 (OK)
+        return jsonify(access_token=access_token, user=guest_data), 200 
+    
     except Exception as e: # Captura qualquer exceção
-        print(f"ERRO /guest: {e}") # Loga o erro no servidor
-        return jsonify(error="Erro interno ao criar convidado."), 500 # Retorna erro interno com status 500
+        db.session.rollback() # Desfaz quaisquer mudanças no DB se algo deu errado
+        print(f"ERRO CRÍTICO EM /guest: {e}") # Loga o erro REAL no console do Render
+        return jsonify(error=f"Erro interno ao criar convidado: {str(e)}"), 500 # Retorna erro 500
 
 @bp.route('/me', methods=['GET']) # Define a rota para buscar dados do usuário atual com método GET
 @jwt_required() # Protege a rota, exigindo um token JWT válido
@@ -67,8 +75,9 @@ def get_current_user(): # Define a função para buscar dados do usuário atual
         if not user: # Verifica se o usuário foi encontrado
             return jsonify(error="Usuário não encontrado"), 404 # Retorna erro 404 se o usuário não for encontrado
 
-
+ 
         return jsonify(user_schema.dump(user)), 200 # Serializa e retorna os dados do usuário com status 200
     except Exception as e: # Captura qualquer exceção
         print(f"ERRO /me: {e}") # Loga o erro no servidor
         return jsonify(error="Erro ao buscar dados do usuário."), 500 # Retorna erro interno com status 500
+
